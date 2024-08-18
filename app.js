@@ -4,13 +4,12 @@ const methodOverride = require("method-override");
 const path = require("path");
 const Listing = require("./models/listing.js");
 const app = express();
+const ejsMate = require("ejs-mate");
 
 const MONGO_URL = "mongodb://127.0.0.1:27017/wanderlust";
-
 async function main() {
     await mongoose.connect(MONGO_URL);
 }
-
 main().then(() =>{
     console.log("connected to DB");
 }).catch(err => {
@@ -21,10 +20,13 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.urlencoded({extended: true}));
 app.use(methodOverride("_method"));
+app.engine('ejs', ejsMate);
+app.use(express.static(path.join(__dirname, "/public")));
 
 app.listen(8080, () => {
     console.log("Server is listening to port 8080");
 });
+
 
 app.get("/", (req, res) =>{
     res.send("Hi, i'm root..");
