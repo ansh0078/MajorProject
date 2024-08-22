@@ -5,6 +5,9 @@ const path = require("path");
 const Listing = require("./models/listing.js");
 const app = express();
 const ejsMate = require("ejs-mate");
+const warpAsync = require("./utils/warpAsync.js");
+const ExpressError = require("./utils/expressError.js");
+const {listingSchema} = require("./schema.js");
 
 const MONGO_URL = "mongodb://127.0.0.1:27017/wanderlust";
 async function main() {
@@ -32,45 +35,67 @@ app.get("/", (req, res) =>{
     res.send("Hi, i'm root..");
 });
 
-app.get("/listings", async (req,res) => {
+const validateListing = (req, res, next) => {
+    let {error} = listingSchema.validate(req.body);
+    if(error) {
+        let msg = error.details.map(el => el.message).join(",");
+        throw new ExpressError(msg, 400);
+    }
+    else {
+        next();
+    }
+}
+
+app.get("/listings", warpAsync(async(req,res) => {
     const allListing = await Listing.find({});
     res.render("listings/index.ejs", {allListing});
-});
+}));
 
 app.get("/listings/new", (req,res) => {
     res.render("listings/new.ejs");
 });
 
-app.get("/listings/:id", async(req, res) =>{
+app.get("/listings/:id", warpAsync(async(req, res) =>{
     let {id} = req.params;
     const listing = await Listing.findById(id);
     res.render("listings/show.ejs", {listing});
-});
+}));
 
-app.post("/listings", async(req,res) => {
+app.post("/listings", validateListing, warpAsync(async(req,res, next) => {
     const newListing = new Listing(req.body.listing);
     await newListing.save();
     res.redirect("/listings");
-});
+}));
 
-app.get("/listings/:id/edit", async(req,res) => {
+app.get("/listings/:id/edit", warpAsync(async(req,res) => {
     let {id} = req.params;
     const listing = await Listing.findById(id);
     res.render("listings/edit.ejs", {listing});
-});
+}));
 
-app.put("/listings/:id", async(req,res) => {
+app.put("/listings/:id", validateListing, warpAsync(async(req,res) => {
     let {id} = req.params;
     await Listing.findByIdAndUpdate(id, {...req.body.listing});
     res.redirect(`/listings/${id}`);
-});
+}));
 
-app.delete("/listings/:id",async(req,res) => {
+app.delete("/listings/:id", warpAsync(async(req,res) => {
     let {id} = req.params;
     let deleteListing = await Listing.findByIdAndDelete(id);
     console.log(deleteListing);
     res.redirect("/listings");
+}));
+
+app.all("*", (req, res, next) => {
+    next(new ExpressError("Page not found", 404));
 });
+
+app.use((err, req, res, next) => {
+    let {statusCode = 500, message = "Something went wrong"} = err;
+    // res.status(statusCode).send(message);
+    res.status(statusCode).render("error.ejs", {message});
+});
+
 
 
 // app.get("/testListing", async(req, res) =>{
