@@ -3,12 +3,15 @@ const mongoose = require("mongoose");
 const methodOverride = require("method-override");
 const path = require("path");
 const Listing = require("./models/listing.js");
-const app = express();
 const ejsMate = require("ejs-mate");
 const warpAsync = require("./utils/warpAsync.js");
 const ExpressError = require("./utils/expressError.js");
-const {listingSchema} = require("./schema.js");
+const {listingSchema, reviewSchema} = require("./schema.js");
+const Review = require("./models/review.js");
+const review = require("./models/review.js");
 
+
+const app = express();
 const MONGO_URL = "mongodb://127.0.0.1:27017/wanderlust";
 async function main() {
     await mongoose.connect(MONGO_URL);
@@ -40,11 +43,20 @@ const validateListing = (req, res, next) => {
     if(error) {
         let msg = error.details.map(el => el.message).join(",");
         throw new ExpressError(msg, 400);
-    }
-    else {
+    } else {
         next();
     }
-}
+};
+
+const validateReview = (req, res, next) => {
+    let {error} = reviewSchema.validate(req.body);
+    if(error) {
+        let msg = error.details.map(el => el.message).join(",");
+        throw new ExpressError(msg, 400);
+    } else {
+        next();
+    }
+}; 
 
 app.get("/listings", warpAsync(async(req,res) => {
     const allListing = await Listing.find({});
@@ -84,6 +96,17 @@ app.delete("/listings/:id", warpAsync(async(req,res) => {
     let deleteListing = await Listing.findByIdAndDelete(id);
     console.log(deleteListing);
     res.redirect("/listings");
+}));
+
+app.post("/listings/:id/reviews", validateReview, warpAsync(async(req, res) => {
+    let listing = await Listing.findById(req.params.id);
+    let newReview = new Review(req.body.review);
+
+    listing.reviews.push(newReview);
+    await newReview.save();
+    await listing.save();
+
+    res.redirect(`/listings/${listing._id}`);
 }));
 
 app.all("*", (req, res, next) => {
